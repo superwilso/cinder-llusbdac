@@ -1,0 +1,40 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: ARM binutils
+        run: sudo apt-get update && sudo apt-get install -y binutils-arm-linux-gnueabihf
+      - name: Cache the kernel source and toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            work/linux-kernel-3.10.26.tar.gz
+            work/debs
+          key: sources-${{ hashFiles('build.sh') }}
+      - name: Build
+        run: ./build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: llusbdac
+          path: out/
+      - name: Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" out/llusbdac.ko out/llusbdac.ko.sha256 \
+            --title "$GITHUB_REF_NAME" \
+            --notes "llusbdac.ko for the NW-A50 series, built by this workflow from zhangboyang/llusbdac and Sony's NW-A57 kernel source (see build.sh for the pinned sources). sha256: $(cut -d' ' -f1 out/llusbdac.ko.sha256)"
