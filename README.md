@@ -18,13 +18,19 @@ optional low-latency USB DAC component; a player without it keeps Sony's USB DAC
 
 | Source | Pinned at |
 |---|---|
-| llusbdac (GPLv2), unmodified | upstream commit `eeb31d5` |
+| llusbdac (GPLv2), plus the patch in `patches/` | upstream commit `eeb31d5` |
 | Sony's GPL kernel source for the NW-A57 (`linux-kernel-3.10.26`), configured with `BBDMP5_linux_debug_defconfig`, the A50 series' config | sha256 `3aef2bdc…` |
 | GCC 4.9.3 for ARM, from Ubuntu 16.04's packages (Linux 3.10 predates GCC 5) | sha256 per package |
 
 The build checks that the module's `vermagic` reads `3.10.26 SMP preempt mod_unload ARMv7`, as
-the player's own modules do. Any changes this repo needs to make to llusbdac will go in
-`patches/` and be applied on top of the pinned commit; today there are none.
+the player's own modules do. Changes to llusbdac live in `patches/` and are applied on top of the
+pinned commit. There is one, `0001-gui-option-and-proc-stats.patch` (since v0.2.0):
+
+- `gui=0` loads the module without its on-screen overlay (no display-engine patch, no redraw
+  thread), for a player app that shows the state itself. The default, `gui=1`, is upstream's.
+- `/proc/llusbdac` reads the numbers the overlay draws, as one line:
+  `state=streaming rate=96000 bits=32 frames=… buffer_us=4000 overrun=0 underrun=0 usb_errors=0`.
+  `state` is `streaming`, `idle`, `disabled` or `disconnected`.
 
 Releases are built by the workflow in `.github/workflows/build.yml`, never by hand, and each one
 states the module's sha256.

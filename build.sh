@@ -1,7 +1,7 @@
 #!/bin/sh
 # Build llusbdac.ko for the NW-A50 series from public sources, every one pinned by hash:
 #
-#   - llusbdac itself: zhangboyang/llusbdac at UPSTREAM_COMMIT (GPLv2), unmodified.
+#   - llusbdac itself: zhangboyang/llusbdac at UPSTREAM_COMMIT (GPLv2), plus patches/*.patch.
 #   - The kernel it builds against: Sony's GPL release of linux-kernel-3.10.26 for the NW-A57
 #     (the NW-A50 series' kernel), configured with BBDMP5_linux_debug_defconfig, the A50 series'
 #     own config in that tree.

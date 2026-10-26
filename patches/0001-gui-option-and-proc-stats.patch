@@ -1,0 +1,78 @@
+diff --git a/llusbdac/gui.c b/llusbdac/gui.c
+index 7444cbf..5640367 100644
+--- a/llusbdac/gui.c
++++ b/llusbdac/gui.c
+@@ -8,6 +8,8 @@
+ #include <linux/kallsyms.h>
+ #include <linux/dma-mapping.h>
+ #include <linux/input.h>
++#include <linux/proc_fs.h>
++#include <linux/seq_file.h>
+ #include <asm/cacheflush.h>
+ 
+ #include "llusbdac.h"
+@@ -15,6 +17,11 @@
+ static struct task_struct *redraw_thread;
+ static int gui_enabled = 0;
+ 
++/* gui=0: no on-screen overlay (no display-engine patch, no redraw thread), for a host app that
++ * shows the state itself from /proc/llusbdac. Upstream behaviour is gui=1. */
++static int gui_overlay = 1;
++module_param_named(gui, gui_overlay, int, 0);
++
+ #define TEXTAREA_H 11   // in chars
+ #define TEXTAREA_W 27
+ static unsigned char text_buf[TEXTAREA_H][TEXTAREA_W];
+@@ -705,14 +712,40 @@ static int redraw_thread_fn(void *data)
+ void enable_gui(int en)
+ {
+     gui_enabled = en;
+-    if (en) {
++    if (en && gui_overlay) {
+         request_redraw();
+     }
+ }
+ 
++/* /proc/llusbdac: what the overlay's STATE page shows, as one line of key=value pairs. */
++static int stats_show(struct seq_file *m, void *v)
++{
++    uac_stats_t s = uac_stats;
++    unsigned buffer_us = s.sample_rate ? (unsigned)div_u64((u64)s.buf_frames * 1000000, s.sample_rate) : 0;
++    seq_printf(m, "state=%s rate=%u bits=%u frames=%llu buffer_us=%u overrun=%llu underrun=%llu usb_errors=%llu\n",
++               usb_connected() ? (gadget_enabled() ? (s.running ? "streaming" : "idle") : "disabled") : "disconnected",
++               s.sample_rate, s.sample_bits, s.n_frames, buffer_us,
++               s.err.overrun, s.err.underrun, s.err.usb);
++    return 0;
++}
++static int stats_open(struct inode *inode, struct file *file)
++{
++    return single_open(file, stats_show, NULL);
++}
++static const struct file_operations stats_fops = {
++    .owner   = THIS_MODULE,
++    .open    = stats_open,
++    .read    = seq_read,
++    .llseek  = seq_lseek,
++    .release = single_release,
++};
+ 
+ void init_gui(void)
+ {
++    proc_create("llusbdac", 0444, NULL, &stats_fops);
++    if (!gui_overlay)
++        return;
++
+     if (input_register_handler(&llusbdac_input_handler) != 0) {
+         panic("input_register_handler failed!");
+     }
+@@ -726,6 +759,10 @@ void init_gui(void)
+ }
+ void cleanup_gui(void)
+ {
++    remove_proc_entry("llusbdac", NULL);
++    if (!gui_overlay)
++        return;
++
+     kthread_stop(redraw_thread);
+     
+     do_dirty_hack(0);
